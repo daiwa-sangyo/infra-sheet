@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>インフラ手配シート</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL  = 'https://oykyrdusebvntrlgeeai.supabase.co';
+const SUPABASE_KEY  = 'sb_publishable_IOEofPNqzYVJIC8Nuzvq6A_9QDySW_h';
+const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95a3lyZHVzZWJ2bnRybGdlZWFpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5NzM0NzYsImV4cCI6MjA5OTU0OTQ3Nn0.0EaSvesyWuDpGZw27lNOuE1SPP6K-4MMUa9eJdB1uYw';
+const _sb2 = supabase.createClient(SUPABASE_URL, ANON_KEY);
+</script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; font-size: 13px; color: #1a1a1a; background: #eeecea; min-height: 100vh; }
@@ -106,7 +114,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragin
 .add-provider-btn:hover { border-color: #4a90d9; color: #4a90d9; }
 
 .log-lbl  { font-size: 10px; font-weight: 700; color: #bbb; margin-bottom: 5px; }
-.entry-row { display: grid; grid-template-columns: 120px 120px 80px 1fr 22px; gap: 6px; align-items: end; margin-bottom: 5px; }
+.entry-row { display: grid; grid-template-columns: 110px 110px 70px 90px 1fr 22px; gap: 6px; align-items: end; margin-bottom: 5px; }
 .e-lbl    { font-size: 10px; color: #bbb; font-weight: 600; margin-bottom: 2px; }
 .e-input  { border: 1px solid #e0e0de; border-radius: 5px; padding: 6px 7px; font-size: 12px; color: #1a1a1a; font-family: inherit; background: #fafafa; outline: none; width: 100%; -webkit-appearance: none; }
 .e-input:focus { border-color: #4a90d9; background: #fff; }
@@ -160,7 +168,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragin
   .top-bar { display: none; }
   .info-row.r4 { grid-template-columns: 1fr 1fr; }
   .info-row.r3 { grid-template-columns: 1fr 1fr; }
-  .entry-row { grid-template-columns: 1fr 1fr 70px 1fr 22px; }
+  .entry-row { grid-template-columns: 1fr 1fr 60px 70px 1fr 22px; }
   .util-name { width: 60px; }
   .tel-wrap { width: 160px; }
 }
@@ -222,7 +230,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragin
       </div>
       <div class="info-row r3">
         <div class="field"><label>所有会社</label><input type="text" id="f-ownerCo" oninput="onBasicInput()"></div>
-        <div class="field"><label>担当者（所有会社）</label><input type="text" id="f-ownerPerson" oninput="onBasicInput()"></div>
+        <div class="field"><label>担当者</label><input type="text" id="f-ownerPerson" oninput="onBasicInput()"></div>
         <div class="field"><label>担当者TEL</label><input type="tel" id="f-ownerTel" placeholder="00-0000-0000" oninput="onBasicInput()"></div>
       </div>
       <div class="info-row r4">
@@ -282,8 +290,19 @@ function newSiteData(base){
   return {id:makeSiteId(), basic:s?s.basic:{}, utils:s?s.utils:{}, netProviders:s?[...s.netProviders]:['NTT','KDDI']};
 }
 function defUtil(){return {status:'pending',hogo:false,立会:'不要',立会撤去:'不要',hogoDate:'',entries:[],note:'',shareMemo:'',co:'',tel:''};}
-function saveAll(){localStorage.setItem(LS_KEY,JSON.stringify({sites,currentSiteId}));showAutosave();}
-function loadAll(){try{const r=localStorage.getItem(LS_KEY);if(!r)return false;const d=JSON.parse(r);sites=d.sites||[];currentSiteId=d.currentSiteId||null;return true;}catch{return false;}}
+const SB_ROW_ID=1;
+async function saveAll(){
+  try{await _sb2.from('sites').upsert({id:SB_ROW_ID,data:JSON.stringify({sites,currentSiteId})},{onConflict:'id'});}catch{}
+  try{localStorage.setItem(LS_KEY,JSON.stringify({sites,currentSiteId}));}catch{}
+  showAutosave();
+}
+async function loadAll(){
+  try{
+    const {data,error}=await _sb2.from('sites').select('data').eq('id',SB_ROW_ID).single();
+    if(!error&&data){const d=JSON.parse(data.data);sites=d.sites||[];currentSiteId=d.currentSiteId||null;return true;}
+  }catch{}
+  try{const r=localStorage.getItem(LS_KEY);if(!r)return false;const d=JSON.parse(r);sites=d.sites||[];currentSiteId=d.currentSiteId||null;return true;}catch{return false;}
+}
 function curSite(){return sites.find(s=>s.id===currentSiteId);}
 
 // DOM→state
@@ -467,7 +486,8 @@ function buildLogHTML(key,entries){
       <div><div class="e-lbl">${i===0?'電話日':''}</div><input class="e-input" type="date" value="${escHtml(e.callDate)}" onchange="updateEntry('${key}',${i},'callDate',this.value)"></div>
       <div><div class="e-lbl">${i===0?'廃止・撤去予定日':''}</div><input class="e-input" type="date" value="${escHtml(e.stopDate)}" onchange="updateEntry('${key}',${i},'stopDate',this.value);updateEntryTimeVis('${key}',${i})"></div>
       <div id="stoptime-wrap-${key}-${i}" style="${hasDate?'':'visibility:hidden'}"><div class="e-lbl">${i===0?'時間':'　'}</div><input class="e-input" type="text" placeholder="AM / 13時〜" value="${escHtml(e.stopTime||'')}" onchange="updateEntry('${key}',${i},'stopTime',this.value)"></div>
-      <div><div class="e-lbl">${i===0?'担当者名':''}</div><input class="e-input" type="text" placeholder="" value="${escHtml(e.person)}" onchange="updateEntry('${key}',${i},'person',this.value)"></div>
+      <div><div class="e-lbl">${i===0?'担当者名':''}</div><input class="e-input" type="text" value="${escHtml(e.person)}" onchange="updateEntry('${key}',${i},'person',this.value)"></div>
+      <div><div class="e-lbl">${i===0?'会話メモ':''}</div><input class="e-input" type="text" value="${escHtml(e.convMemo||'')}" onchange="updateEntry('${key}',${i},'convMemo',this.value)"></div>
       <button class="del-btn" onclick="removeEntry('${key}',${i})">×</button>
     </div>`;
   });
@@ -624,60 +644,62 @@ function formatDate(dateStr){
 function buildLineText(){
   syncDomToSite();
   const site=curSite(); if(!site) return '';
-  const siteName=site.basic.siteName||'現場名';
+  // （仮称）を除去
+  const siteName=(site.basic.siteName||'現場名').replace(/（仮称）/g,'').replace(/\(仮称\)/g,'').trim();
   const blocks=[];
 
-  // 全設備を定義順に収集
+  const FIXED_LABELS={'elec':'電気','gas':'ガス','water':'水道'};
+
   const allItems=[];
   UTILS_DEF.forEach(u=>{
     if(u.multi){
       (site.netProviders||[]).forEach((p,pi)=>{
         const key='net_'+pi;
         const co=(site.utils[key]&&site.utils[key].co)||p||'';
-        allItems.push({key, label:co, co, pi, defHogo:true});
+        allItems.push({key, label:co, co, isNet:true, defHogo:true});
       });
     } else {
       const co=(site.utils[u.id]&&site.utils[u.id].co)||u.defCo||u.label;
-      allItems.push({key:u.id, label:u.label, co, pi:undefined, defHogo:!!u.hogo});
+      // 電気・ガス・水道は固定ラベル、それ以外は会社名
+      const label=FIXED_LABELS[u.id]||co;
+      allItems.push({key:u.id, label, co, isNet:false, defHogo:!!u.hogo});
     }
   });
 
-  // ── ① 防護管ブロック（防護管ON かつ 該当なし以外） ──
-  allItems.forEach(({key,co,defHogo})=>{
+  // ── ① 防護管ブロック ──
+  allItems.forEach(({key,co,label,isNet,defHogo})=>{
     if(!defHogo) return;
     const d=site.utils[key]; if(!d) return;
-    if(!d.hogo) return;       // 防護管トグルがOFFはスキップ
-    if(d.status==='na') return; // 該当なしはスキップ
+    if(!d.hogo) return;
+    if(d.status==='na') return;
     const hogoDate=d.hogoDate||'';
     const tatiai=d.立会||'不要';
-    let b=`【${co}防護カバー】`;
-    b+=`\n・取付日:${hogoDate?formatDate(hogoDate):'未定'}`;
-    b+=`\n・立会い${tatiai==='あり'?'あり':'不要'}`;
-    // 撤去完了済みなら※で追記
+    const blockName=isNet?co:label;
+    let b=`【${blockName}防護カバー】`;
+    b+=`\n取付日:${hogoDate?formatDate(hogoDate):'未定'}`;
+    b+=`\n立会い${tatiai==='あり'?'あり':'不要'}`;
     const stopDate=d.entries&&d.entries.length>0?d.entries.find(e=>e.stopDate)?.stopDate:'';
-    if(stopDate&&d.status==='done'){
-      b+=`\n※${formatDate(stopDate)}引込線撤去済み`;
-    }
+    if(stopDate&&d.status==='done') b+=`\n※${formatDate(stopDate)}引込線撤去済み`;
     blocks.push(b);
   });
 
-  // ── ② 撤去・停止ブロック（完了のもの） ──────────────
-  allItems.forEach(({key,label,co})=>{
+  // ── ② 撤去・停止ブロック ──
+  allItems.forEach(({key,label,co,isNet})=>{
     const d=site.utils[key]; if(!d) return;
-    if(d.status!=='done') return; // 完了のみ
-    const displayName=label||co;
+    if(d.status!=='done') return;
+    const displayName=isNet?co:label;
     const stopDate=d.entries&&d.entries.length>0?d.entries.find(e=>e.stopDate)?.stopDate:'';
     const stopTime=d.entries&&d.entries.length>0?d.entries.find(e=>e.stopDate)?.stopTime||'':'';
     const tatiai=d.立会撤去||d.立会||'不要';
     let b=`【${displayName}】`;
-    b+=`\n・撤去日:${stopDate?formatDate(stopDate):'未定'}${stopTime?' '+stopTime:''}`;
-    b+=`\n・立会い${tatiai==='あり'?'あり':'不要'}`;
-    if(d.shareMemo) b+=`\n・${d.shareMemo}`;
+    b+=`\n撤去日:${stopDate?formatDate(stopDate):'未定'}${stopTime?' '+stopTime:''}`;
+    b+=`\n立会い${tatiai==='あり'?'あり':'不要'}`;
+    if(d.shareMemo) b+=`\n${d.shareMemo}`;
     blocks.push(b);
   });
 
-  if(blocks.length===0) return `${siteName}インフラ関係\n\n（出力対象の設備がありません）\n\n※ 防護管：トグルON、撤去：ステータスを「完了」にすると出力されます`;
-  return `${siteName}インフラ関係\n\n`+blocks.join('\n');
+  if(blocks.length===0) return `${siteName}インフラ手配\n\n（出力対象の設備がありません）\n\n※ 防護管：トグルON、撤去：ステータスを「完了」にすると出力されます`;
+  return `${siteName} インフラ手配\n\n`+blocks.join('\n\n');
 }
 
 window.openLineModal=()=>{
@@ -733,11 +755,12 @@ function migrateDefaults(){
 }
 
 // 初期化
-(function init(){
-  if(!loadAll()||sites.length===0){const s=newSiteData();sites=[s];currentSiteId=s.id;}
+(async function init(){
+  const ok=await loadAll();
+  if(!ok||sites.length===0){const s=newSiteData();sites=[s];currentSiteId=s.id;}
   if(!currentSiteId||!sites.find(s=>s.id===currentSiteId))currentSiteId=sites[0].id;
   migrateDefaults();
-  saveAll();
+  await saveAll();
   const site=curSite();
   currentNetProviders=site.netProviders?[...site.netProviders]:['NTT','KDDI'];
   renderUtilsContainer(site);applyBasic(site);applyUtils(site);renderSidebar();
