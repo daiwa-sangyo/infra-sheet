@@ -295,7 +295,7 @@ function newSiteData(base){
   const s=base?JSON.parse(JSON.stringify(base)):null;
   return {id:makeSiteId(), basic:s?s.basic:{}, utils:s?s.utils:{}, netProviders:s?[...s.netProviders]:['NTT','KDDI']};
 }
-function defUtil(){return {status:'pending',hogo:false,立会:'不要',立会撤去:'不要',hogoDate:'',entries:[],note:'',shareMemo:'',co:'',tel:''};}
+function defUtil(){return {status:'pending',hogo:false,立会:'不要',立会撤去:'不要',hogoDate:'',hogoTime:'',entries:[],note:'',shareMemo:'',co:'',tel:''};}
 const SB_ROW_ID=2;
 async function saveAll(){
   try{await _sb2.from('sites').upsert({id:SB_ROW_ID,data:JSON.stringify({sites,currentSiteId})},{onConflict:'id'});}catch{}
@@ -329,6 +329,7 @@ function syncDomToSite(){
     const ta=document.getElementById('tatiai-'+key); if(ta) d.立会=ta.value;
     const tt=document.getElementById('tatiai-tesshu-'+key); if(tt) d.立会撤去=tt.value;
     const hd=document.querySelector(`#hogo-section-${key} input[type=date]`); if(hd) d.hogoDate=hd.value;
+    const ht2=document.getElementById('hogotime-'+key); if(ht2) d.hogoTime=ht2.value;
     const sm=document.getElementById('sharememo-'+key); if(sm) d.shareMemo=sm.value;
   }
   UTILS_DEF.filter(u=>!u.multi).forEach(u=>syncKey(u.id,false,null));
@@ -343,6 +344,7 @@ function syncDomToSite(){
     const ta=document.getElementById('tatiai-'+key);if(ta)d.立会=ta.value;
     const tt=document.getElementById('tatiai-tesshu-'+key);if(tt)d.立会撤去=tt.value;
     const hd=document.querySelector(`#hogo-section-${key} input[type=date]`);if(hd)d.hogoDate=hd.value;
+    const ht2=document.getElementById('hogotime-'+key);if(ht2)d.hogoTime=ht2.value;
   });
 }
 
@@ -497,7 +499,8 @@ window.toggleHogo=key=>{
 };
 window.updateTatiai=(key,v)=>{const site=curSite();if(!site)return;if(!site.utils[key])site.utils[key]=defUtil();site.utils[key].立会=v;scheduleSave();};
 window.updateTatiaiTesshu=(key,v)=>{const site=curSite();if(!site)return;if(!site.utils[key])site.utils[key]=defUtil();site.utils[key].立会撤去=v;scheduleSave();};
-window.updateHogoDate=(key,v)=>{const site=curSite();if(!site)return;if(!site.utils[key])site.utils[key]=defUtil();site.utils[key].hogoDate=v;scheduleSave();};
+window.updateHogoDate=(key,v)=>{const site=curSite();if(!site)return;if(!site.utils[key])site.utils[key]=defUtil();site.utils[key].hogoDate=v;const tw=document.getElementById('hogotime-'+key);if(tw)tw.style.visibility=v?'visible':'hidden';scheduleSave();};
+window.updateHogoTime=(key,v)=>{const site=curSite();if(!site)return;if(!site.utils[key])site.utils[key]=defUtil();site.utils[key].hogoTime=v;scheduleSave();};
 window.addEntry=key=>{const site=curSite();if(!site)return;if(!site.utils[key])site.utils[key]=defUtil();site.utils[key].entries.push({callDate:'',stopDate:'',person:''});rerenderLog(key,site.utils[key].entries);saveAll();};
 window.removeEntry=(key,i)=>{const site=curSite();if(!site)return;site.utils[key].entries.splice(i,1);rerenderLog(key,site.utils[key].entries);saveAll();};
 window.updateEntry=(key,i,f,v)=>{const site=curSite();if(!site)return;if(!site.utils[key])return;site.utils[key].entries[i][f]=v;scheduleSave();};
@@ -568,16 +571,21 @@ function buildContactBlock(key,d,showHogo){
   const note=d&&d.note||'';
   const shareMemo=d&&d.shareMemo||'';
   const hogoDate=d&&d.hogoDate||'';
+  const hogoTime=d&&d.hogoTime||'';
   const tatiaiTesshu=d&&d.立会撤去||'不要';
   const hogoOn=d&&d.hogo;
 
-  // 防護管取付日欄（hogoがONのときのみ表示）
+  // 防護管取付日・時間欄（撤去と同じ形式）
   const hogoSection=showHogo?`
     <div id="hogo-section-${key}" style="${hogoOn?'':'display:none'}">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px 10px;background:#fffbeb;border-radius:6px;border:1px solid #fde68a">
-        <div class="field" style="flex:1;margin:0">
-          <label style="color:#92400e">🦺 防護管 取付日</label>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px 10px;background:#fffbeb;border-radius:6px;border:1px solid #fde68a;flex-wrap:wrap">
+        <div class="field" style="width:130px;margin:0">
+          <label style="color:#92400e;font-size:10px;font-weight:700">🦺 取付日</label>
           <input type="date" class="e-input" value="${escHtml(hogoDate)}" onchange="updateHogoDate('${key}',this.value)" style="background:#fff">
+        </div>
+        <div class="field" style="width:90px;margin:0">
+          <label style="color:#92400e;font-size:10px;font-weight:700">時間</label>
+          <input type="text" class="e-input" placeholder="AM など" value="${escHtml(hogoTime)}" onchange="updateHogoTime('${key}',this.value)" style="background:#fff;visibility:${hogoDate?'visible':'hidden'}" id="hogotime-${key}">
         </div>
         ${buildTatiaiSelect(key,d&&d.立会||'不要',`updateTatiai('${key}',this.value)`,'tatiai-'+key)}
       </div>
@@ -695,7 +703,6 @@ function formatDate(dateStr){
 function buildLineText(){
   syncDomToSite();
   const site=curSite(); if(!site) return '';
-  // （仮称）を除去
   const siteName=(site.basic.siteName||'現場名').replace(/（仮称）/g,'').replace(/\(仮称\)/g,'').trim();
   const blocks=[];
 
@@ -704,41 +711,40 @@ function buildLineText(){
   const allItems=[];
   UTILS_DEF.forEach(u=>{
     if(u.multi){
-      (site.netProviders||[]).forEach((p,pi)=>{
-        const key='net_'+pi;
+      const providers=u.id==='net'?(site.netProviders||[]):(site.catvProviders||currentCatvProviders);
+      providers.forEach((p,pi)=>{
+        const key=u.id+'_'+pi;
         const co=(site.utils[key]&&site.utils[key].co)||p||'';
-        allItems.push({key, label:co, co, isNet:true, defHogo:true});
+        allItems.push({key, label:co, co, isMulti:true, defHogo:!!u.hogo});
       });
     } else {
       const co=(site.utils[u.id]&&site.utils[u.id].co)||u.defCo||u.label;
-      // 電気・ガス・水道は固定ラベル、それ以外は会社名
       const label=FIXED_LABELS[u.id]||co;
-      allItems.push({key:u.id, label, co, isNet:false, defHogo:!!u.hogo});
+      allItems.push({key:u.id, label, co, isMulti:false, defHogo:!!u.hogo});
     }
   });
 
   // ── ① 防護管ブロック ──
-  allItems.forEach(({key,co,label,isNet,defHogo})=>{
+  allItems.forEach(({key,co,label,isMulti,defHogo})=>{
     if(!defHogo) return;
     const d=site.utils[key]; if(!d) return;
     if(!d.hogo) return;
     if(d.status==='na') return;
     const hogoDate=d.hogoDate||'';
+    const hogoTime=d.hogoTime||'';
     const tatiai=d.立会||'不要';
-    const blockName=isNet?co:label;
+    const blockName=isMulti?co:label;
     let b=`【${blockName}防護カバー】`;
-    b+=`\n取付日:${hogoDate?formatDate(hogoDate):'未定'}`;
+    b+=`\n取付日:${hogoDate?formatDate(hogoDate):'未定'}${hogoTime?' '+hogoTime:''}`;
     b+=`\n立会い${tatiai==='あり'?'あり':'不要'}`;
-    const stopDate=d.entries&&d.entries.length>0?d.entries.find(e=>e.stopDate)?.stopDate:'';
-    if(stopDate&&d.status==='done') b+=`\n※${formatDate(stopDate)}引込線撤去済み`;
     blocks.push(b);
   });
 
   // ── ② 撤去・停止ブロック ──
-  allItems.forEach(({key,label,co,isNet})=>{
+  allItems.forEach(({key,label,co,isMulti})=>{
     const d=site.utils[key]; if(!d) return;
     if(d.status!=='done') return;
-    const displayName=isNet?co:label;
+    const displayName=isMulti?co:label;
     const stopDate=d.entries&&d.entries.length>0?d.entries.find(e=>e.stopDate)?.stopDate:'';
     const stopTime=d.entries&&d.entries.length>0?d.entries.find(e=>e.stopDate)?.stopTime||'':'';
     const tatiai=d.立会撤去||d.立会||'不要';
